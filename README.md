@@ -4,6 +4,9 @@ Digital advocacy often operates in a "black box." I wanted to deconstruct how gr
 📌 Project Overview
 This project investigates the "black box" of digital advocacy by deconstructing how granular personal data is leveraged to influence global audiences. Using Snapchat’s political transparency data, I engineered a data pipeline to analyze 1.7 Billion+ impressions and over $3.8M in ad spend, uncovering the specific algorithmic criteria used to segment and target users.
 
+<img width="1920" height="1080" alt="Screenshot 2026-04-27 at 11 38 27 AM" src="https://github.com/user-attachments/assets/f0494856-9dc0-4661-8613-37b9b4deafa5" />
+
+
 Interactive Dashboard: Designed a multi-panel Tableau dashboard that allows users to drill down from high-level global spend to specific organizational targeting strategies.(https://public.tableau.com/app/profile/tyrese.dieudonne/viz/SnapchatAdTargetingAnalysis/SnapshotAdsDashboard)
 
 <img width="1920" height="1080" alt="Screenshot 2026-04-27 at 11 34 07 AM" src="https://github.com/user-attachments/assets/0b0160dd-a6b2-41a1-b8c5-af8d1e12f34e" />
