@@ -1,0 +1,377 @@
+## SQL Queries
+
+### Create Tables
+
+```sql
+-- Primary ads table
+CREATE TABLE snapchat_ads (
+    ad_id                       VARCHAR(255) PRIMARY KEY,
+    advanced_demographics       VARCHAR(255),
+    age_bracket                 VARCHAR(50),
+    billing_address             TEXT,
+    closed_date                 TIMESTAMP,
+    target_criteria_count       INT,
+    number_of_ads               INT,
+    pct_impressions             DECIMAL(10,6),
+    targets_age                 BOOLEAN,
+    targets_interests           BOOLEAN,
+    targets_gender              BOOLEAN,
+    targets_language            BOOLEAN,
+    targets_os_type             BOOLEAN,
+    targets_advanced_demo       BOOLEAN,
+    targets_segments            BOOLEAN,
+    location_targeting_tier     INT,         -- 0=none, 1=broad, 2=granular
+    year_of_ad                  INT,
+    spend_per_impression        DECIMAL(10,6),
+    number_of_countries         INT,
+    total_impressions           BIGINT,
+    candidate_ballot_info       TEXT,
+    country                     VARCHAR(100),
+    creative_properties         TEXT,
+    creative_url                TEXT,
+    electoral_district          VARCHAR(255),
+    end_date                    TIMESTAMP,
+    gender_targeted             VARCHAR(20),
+    impressions                 BIGINT,
+    interests_targeted          TEXT,
+    language_targeted           VARCHAR(100),
+    location_zip_code           VARCHAR(20),
+    location_type               VARCHAR(50),
+    metro_area                  VARCHAR(100),
+    os_type_targeted            VARCHAR(100),
+    organization_name           VARCHAR(255),
+    paying_advertiser_name      VARCHAR(255),
+    region                      VARCHAR(100),
+    segments_targeted           TEXT,
+    spend                       DECIMAL(12,2),
+    start_date                  TIMESTAMP,
+    targets_minors              BOOLEAN,
+    is_zero_spend               BOOLEAN,
+    CONSTRAINT chk_spend
+        CHECK (spend >= 0),
+    CONSTRAINT chk_location_tier
+        CHECK (location_targeting_tier IN (0, 1, 2)),
+    CONSTRAINT chk_criteria_count
+        CHECK (target_criteria_count BETWEEN 0 AND 10)
+);
+
+-- Pivoted targeting dimensions table (from Multiple Connections file)
+CREATE TABLE snapchat_ads_targeting_pivot (
+    pivot_id                    SERIAL PRIMARY KEY,
+    ad_id                       VARCHAR(255) REFERENCES snapchat_ads(ad_id),
+    pivot_field_name            VARCHAR(100),
+    pivot_field_value           TEXT,
+    organization_name           VARCHAR(255),
+    paying_advertiser_name      VARCHAR(255),
+    country                     VARCHAR(100),
+    spend                       DECIMAL(12,2),
+    impressions                 BIGINT,
+    start_date                  TIMESTAMP,
+    end_date                    TIMESTAMP,
+    segments                    TEXT,
+    region                      VARCHAR(100)
+);
+
+-- Election enrichment table (from Overtime data file)
+CREATE TABLE snapchat_ads_overtime (
+    overtime_id                 SERIAL PRIMARY KEY,
+    ad_id                       VARCHAR(255) REFERENCES snapchat_ads(ad_id),
+    pivot_field_name            VARCHAR(50),
+    pivot_field_value           TIMESTAMP,
+    election_type_2018          VARCHAR(100),
+    election_type_2019          VARCHAR(100),
+    election_date_2018          DATE,
+    notable_date                VARCHAR(100),
+    country                     VARCHAR(100),
+    organization_name           VARCHAR(255),
+    spend                       DECIMAL(12,2),
+    impressions                 BIGINT
+);
+```
+
+---
+
+### KPI Queries
+
+```sql
+-- Total spend, impressions, and unique countries (dashboard KPI row)
+SELECT
+    COUNT(DISTINCT country)                         AS total_countries,
+    SUM(spend)                                      AS total_spend,
+    SUM(impressions)                                AS total_impressions
+FROM snapchat_ads
+WHERE is_zero_spend = FALSE;
+```
+
+```sql
+-- Total unique ads and average targeting criteria per ad
+SELECT
+    COUNT(DISTINCT ad_id)                           AS total_ads,
+    ROUND(AVG(target_criteria_count), 2)            AS avg_targeting_criteria,
+    SUM(CASE WHEN target_criteria_count >= 2
+             THEN 1 ELSE 0 END) * 100.0
+        / COUNT(*)                                  AS pct_ads_two_plus_criteria
+FROM snapchat_ads;
+```
+
+---
+
+### Country Analysis
+
+```sql
+-- Number of ads and total spend by country (country bar chart)
+SELECT
+    country,
+    COUNT(ad_id)                                    AS number_of_ads,
+    SUM(spend)                                      AS total_spend,
+    SUM(impressions)                                AS total_impressions,
+    ROUND(SUM(spend) * 100.0 /
+        SUM(SUM(spend)) OVER (), 2)                 AS pct_of_total_spend
+FROM snapchat_ads
+WHERE is_zero_spend = FALSE
+GROUP BY country
+ORDER BY number_of_ads DESC;
+```
+
+```sql
+-- Top 10 organizations by spend in the United States
+SELECT
+    organization_name,
+    paying_advertiser_name,
+    COUNT(ad_id)                                    AS number_of_ads,
+    SUM(spend)                                      AS total_spend,
+    SUM(impressions)                                AS total_impressions
+FROM snapchat_ads
+WHERE country = 'United States'
+  AND is_zero_spend = FALSE
+GROUP BY organization_name, paying_advertiser_name
+ORDER BY total_spend DESC
+LIMIT 10;
+```
+
+```sql
+-- Top 10 organizations by spend in the United Kingdom
+SELECT
+    organization_name,
+    paying_advertiser_name,
+    COUNT(ad_id)                                    AS number_of_ads,
+    SUM(spend)                                      AS total_spend,
+    SUM(impressions)                                AS total_impressions
+FROM snapchat_ads
+WHERE country = 'United Kingdom'
+  AND is_zero_spend = FALSE
+GROUP BY organization_name, paying_advertiser_name
+ORDER BY total_spend DESC
+LIMIT 10;
+```
+
+---
+
+### Audience Segmentation Queries
+
+```sql
+-- Percentage of ads using each targeting dimension
+SELECT
+    ROUND(SUM(CASE WHEN targets_age = TRUE
+                   THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2)
+                                                    AS pct_age_targeting,
+    ROUND(SUM(CASE WHEN targets_segments = TRUE
+                   THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2)
+                                                    AS pct_segment_targeting,
+    ROUND(SUM(CASE WHEN targets_language = TRUE
+                   THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2)
+                                                    AS pct_language_targeting,
+    ROUND(SUM(CASE WHEN targets_interests = TRUE
+                   THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2)
+                                                    AS pct_interest_targeting,
+    ROUND(SUM(CASE WHEN targets_gender = TRUE
+                   THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2)
+                                                    AS pct_gender_targeting,
+    ROUND(SUM(CASE WHEN targets_advanced_demo = TRUE
+                   THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2)
+                                                    AS pct_advanced_demo_targeting
+FROM snapchat_ads;
+```
+
+```sql
+-- Targeting criteria count distribution
+SELECT
+    target_criteria_count,
+    COUNT(ad_id)                                    AS number_of_ads,
+    ROUND(COUNT(ad_id) * 100.0 / SUM(COUNT(ad_id)) OVER (), 2)
+                                                    AS pct_of_total
+FROM snapchat_ads
+GROUP BY target_criteria_count
+ORDER BY target_criteria_count ASC;
+```
+
+---
+
+### Minor Targeting Queries
+
+```sql
+-- All ads targeting users under 18
+SELECT
+    ad_id,
+    age_bracket,
+    organization_name,
+    paying_advertiser_name,
+    country,
+    spend,
+    impressions,
+    start_date,
+    end_date
+FROM snapchat_ads
+WHERE targets_minors = TRUE
+ORDER BY spend DESC;
+```
+
+```sql
+-- Total spend and impressions directed at minor-inclusive audiences
+SELECT
+    targets_minors,
+    COUNT(ad_id)                                    AS number_of_ads,
+    SUM(spend)                                      AS total_spend,
+    SUM(impressions)                                AS total_impressions,
+    ROUND(SUM(spend) * 100.0 /
+        SUM(SUM(spend)) OVER (), 2)                 AS pct_of_total_spend
+FROM snapchat_ads
+WHERE is_zero_spend = FALSE
+GROUP BY targets_minors;
+```
+
+```sql
+-- Organizations that targeted minors and their total spend
+SELECT
+    organization_name,
+    paying_advertiser_name,
+    country,
+    COUNT(ad_id)                                    AS minor_targeted_ads,
+    SUM(spend)                                      AS total_spend,
+    SUM(impressions)                                AS total_impressions,
+    STRING_AGG(DISTINCT age_bracket, ', ')          AS age_brackets_used
+FROM snapchat_ads
+WHERE targets_minors = TRUE
+  AND is_zero_spend = FALSE
+GROUP BY organization_name, paying_advertiser_name, country
+ORDER BY total_spend DESC;
+```
+
+---
+
+### Seasonal & Election Period Queries
+
+```sql
+-- Ad volume and spend by month (seasonal trend)
+SELECT
+    DATE_TRUNC('month', start_date)                 AS ad_month,
+    COUNT(ad_id)                                    AS number_of_ads,
+    SUM(spend)                                      AS total_spend,
+    SUM(impressions)                                AS total_impressions
+FROM snapchat_ads
+WHERE is_zero_spend = FALSE
+GROUP BY DATE_TRUNC('month', start_date)
+ORDER BY ad_month ASC;
+```
+
+```sql
+-- Ad volume before vs after elections by country (overtime enrichment)
+SELECT
+    o.country,
+    o.election_type_2018,
+    o.election_type_2019,
+    COUNT(DISTINCT o.ad_id)                         AS number_of_ads,
+    SUM(a.spend)                                    AS total_spend,
+    SUM(a.impressions)                              AS total_impressions
+FROM snapchat_ads_overtime o
+JOIN snapchat_ads a ON o.ad_id = a.ad_id
+WHERE o.pivot_field_name = 'StartDate'
+GROUP BY o.country, o.election_type_2018, o.election_type_2019
+ORDER BY total_spend DESC;
+```
+
+```sql
+-- Running cumulative spend over time per country (seasonal trend line)
+SELECT
+    country,
+    DATE_TRUNC('week', start_date)                  AS ad_week,
+    SUM(spend)                                      AS weekly_spend,
+    SUM(SUM(spend)) OVER (
+        PARTITION BY country
+        ORDER BY DATE_TRUNC('week', start_date)
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    )                                               AS running_total_spend
+FROM snapchat_ads
+WHERE is_zero_spend = FALSE
+GROUP BY country, DATE_TRUNC('week', start_date)
+ORDER BY country, ad_week;
+```
+
+---
+
+### Year-Over-Year Targeting Growth Query
+
+```sql
+-- Spend per organization in 2018 vs 2019 (slope chart data)
+SELECT
+    organization_name,
+    paying_advertiser_name,
+    country,
+    SUM(CASE WHEN year_of_ad = 2018
+             THEN spend ELSE 0 END)                 AS spend_2018,
+    SUM(CASE WHEN year_of_ad = 2019
+             THEN spend ELSE 0 END)                 AS spend_2019,
+    SUM(CASE WHEN year_of_ad = 2019
+             THEN spend ELSE 0 END)
+        - SUM(CASE WHEN year_of_ad = 2018
+             THEN spend ELSE 0 END)                 AS yoy_spend_change,
+    MAX(targets_minors::INT)                        AS any_minor_targeting
+FROM snapchat_ads
+WHERE is_zero_spend = FALSE
+GROUP BY organization_name, paying_advertiser_name, country
+ORDER BY yoy_spend_change DESC;
+```
+
+---
+
+### Spend Distribution and Outlier Queries
+
+```sql
+-- Spend distribution summary including outlier detection
+SELECT
+    MIN(spend)                                      AS min_spend,
+    PERCENTILE_CONT(0.25) WITHIN GROUP
+        (ORDER BY spend)                            AS p25_spend,
+    PERCENTILE_CONT(0.50) WITHIN GROUP
+        (ORDER BY spend)                            AS median_spend,
+    ROUND(AVG(spend), 2)                            AS avg_spend,
+    PERCENTILE_CONT(0.75) WITHIN GROUP
+        (ORDER BY spend)                            AS p75_spend,
+    MAX(spend)                                      AS max_spend,
+    COUNT(CASE WHEN spend = 0
+               THEN 1 END)                          AS zero_spend_ads,
+    COUNT(CASE WHEN spend > 10000
+               THEN 1 END)                          AS high_spend_ads
+FROM snapchat_ads;
+```
+
+```sql
+-- Top 10 highest spend ads with full targeting profile
+SELECT
+    ad_id,
+    organization_name,
+    paying_advertiser_name,
+    country,
+    age_bracket,
+    targets_minors,
+    target_criteria_count,
+    spend,
+    impressions,
+    ROUND(spend::DECIMAL / NULLIF(impressions, 0), 6)
+                                                    AS spend_per_impression,
+    start_date,
+    end_date
+FROM snapchat_ads
+WHERE is_zero_spend = FALSE
+ORDER BY spend DESC
+LIMIT 10;
