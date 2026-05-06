@@ -9,8 +9,9 @@ analysis spans 2,927 unique ad records across 29 countries, $3,893,165 in
 total ad spend, and 1,725,925,240 total impressions collected across 2018
 and 2019.
 
-## Technical Stack
-- **Data Management:** Python (pandas), Tableau
+LIVE DASHBOARD:https://public.tableau.com/app/profile/tyrese.dieudonne/viz/SnapchatAdTargetingAnalysis/SnapshotAdsDashboard
+ 
+  `.value_counts()`
 - **Data Sources:**
   - `Snapchat_Ads.csv` — 2,927 ad records across 52 columns, primary
     analysis dataset
@@ -19,9 +20,6 @@ and 2019.
   - `Sheet1_Overtime_data.csv` — 5,854 records enriched with election
     type classifications, notable dates, and start/end date pivots used
     for the year-over-year trend line
-- **Validation & Profiling:** `.isnull()`, `.duplicated()`, `.describe()`,
-  `.value_counts()`
-- **Visualization:** Tableau Public — used to build the full dashboard
 
 ## The Data Analysis Process
 I followed a 3-stage ETL framework across three interconnected datasets to
@@ -29,7 +27,7 @@ move from raw ad records to a finished analytical dashboard:
 
 1. **Extract:** Loaded all three CSV files into pandas DataFrames as staging
    environments, confirmed shapes of 2,927 × 52, 35,124 × 28, and
-   5,854 × 38 respectively, and immediately flagged country name casing
+   5,854 × 38, respectively, and immediately flagged the country name casing
    inconsistencies, high null rates across optional targeting fields,
    age brackets that included minors as young as 14, 60 ads with zero
    spend, and a Location targeting flag with three distinct values instead
@@ -58,11 +56,11 @@ move from raw ad records to a finished analytical dashboard:
     national or regional, not district-level
   - `CandidateBallotInformation` — **97.1% null** (2,842 records) — only
     populated for candidate-specific political ads; advocacy and issue ads
-    leave this blank by design
+    Leave this blank by design
   - `Gender` (targeting field) — **89.4% null** (2,617 records) — gender
-    targeting was used in only 310 ads out of 2,927 total
+    Targeting was used in only 310 ads out of 2,927 total
   - `Interests` (targeting field) — **76.8% null** (2,249 records) —
-    interest-based targeting used in fewer than a quarter of all ads
+    Interest-based targeting is used in fewer than a quarter of all ads
   - `Language` — **72.5% null** (2,123 records) — language targeting used
     in roughly 800 ads, primarily in multilingual countries
   - `EndDate` — **20.9% null** (611 records) — ads without an end date
@@ -196,71 +194,196 @@ move from raw ad records to a finished analytical dashboard:
 - No invalid values (negatives, nulls, or values above 7) were found —
   the column was clean
 
-## Dashboard Construction
+## Dashboard Process
 
-### KPI Summary Row
-- **Countries** — 29 unique countries where Snapchat political ads ran
-- **Spend** — $3,893,165.00 in total verified ad spend (excluding
-  zero-spend records)
-- **Impressions** — 1,725,925,240 total impressions delivered across
-  all active ads
+### Step 1 — Connecting the Data Sources
+- Connected all three CSV files into Tableau as separate data sources
+  and established relationships between them using `Ad ID` as the
+  common key across all three files
+- Set the join between the primary and pivoted sources as a LEFT JOIN
+  to preserve all 2,927 primary ad records regardless of whether they
+  had a matching row in the pivot table
+- The overtime enrichment file was joined on `Ad ID` to bring election
+  type classifications and notable date annotations into the time series
+  view without duplicating the primary ad records
 
-### Country Bar Chart
-- Horizontal bar chart ranking all 29 countries by number of ad records
-- United States leading at 1,667, followed by Norway at 344, Canada at
-  293, United Kingdom at 112, and Denmark at 97
-- The US dominance reflects both the volume of political advertisers and
-  Snapchat's largest user base market
+### Step 2 — Calculated Fields and Data Preparation in Tableau
+- **Country Standardization:** Created a calculated field applying
+  title case normalization to the `Country` dimension to prevent
+  casing variants from appearing as separate members in filters and charts
+- **Minor Targeting Flag:** Built a calculated boolean field that
+  evaluated the lower bound of each `AgeBracket` value and returned
+  True for any bracket starting below age 18 — used to color-code
+  records and filter the ethical concern section of the dashboard
+- **Targeting Intensity Bucket:** Created a calculated field grouping
+  `No. of target critereas used` into Low (0-1), Medium (2-3), and
+  High (4+) buckets to power the intensity breakdown in the key
+  findings text block
+- **Zero Spend Filter:** Applied a data source filter excluding all
+  records where `Spend = 0` from every spend-based measure so the
+  Total Spend KPI and all averages reflected only ads that actually ran
+- **LOD Calculation for KPI:** Applied a Fixed Level of Detail
+  expression to the total spend measure so the KPI card value remained
+  anchored to the full dataset regardless of what dimension filters
+  were applied to individual charts below it
 
-### Seasonal Influence: Ad Volume Trends
-- Line chart tracking the running sum of SD targeting from August 2018
-  through June 2020 across the five most active countries
-- Annotation on the chart states: for the five countries where Snapchat
-  ads are most popular, each country experiences an INCREASE in the number
-  of active ads before a major political election
-- Clear spikes visible in the trend lines immediately preceding the
-  November 2018 US Midterm elections and the 2019 European Parliament
-  and General elections — confirming that ad volume is directly correlated
-  with electoral cycles, not organic advertiser activity
+### Step 3 — KPI Summary Row
+- Built three individual KPI tiles using distinct country count, sum
+  of spend, and sum of impressions as the underlying measures
+- Formatted spend as currency and impressions with comma separators
+  for readability at a glance
+- Placed all three tiles in a horizontal container at the top of the
+  dashboard with consistent font sizing, no borders, and no chart
+  chrome so they read as clean headline numbers
 
-### Audience Segmentation Donut Charts
-- Six donut charts showing what percentage of all ads used each targeting
-  dimension:
-  - **Age** — 91.12% of ads used age-based targeting
-  - **Segments** — 66.86% used behavioral or interest segment targeting
-  - **Language** — 27.47% used language targeting
-  - **Interests** — 23.16% used interest-based targeting
-  - **Gender** — 10.59% used gender targeting
-  - **Other** — 3.11% used other miscellaneous targeting methods
-- Age targeting being the dominant dimension at 91.12% is the central
-  finding of the ethical analysis — nearly every ad was delivered based
-  on the user's age, making the minor-targeting issue systemic rather
-  than isolated
+### Step 4 — Country Bar Chart
+- Built a horizontal bar chart ranked by number of ad records per
+  country in descending order so the United States at 1,667 records
+  appeared at the top
+- Applied direct count labels to each bar and added a click-based
+  filter action so selecting any country bar immediately filtered all
+  other charts on the dashboard to that country's records
 
-### Cross-Market Comparison: Leading Ad Spenders by Region
-- Side-by-side horizontal bar charts comparing the top spending
-  organizations in the United States versus the United Kingdom
-- **United States top spenders** — Everytown for Gun Safety AF at
-  $133,075 leading, followed by Planned Parenthood, General Mills,
-  Truth, and Everytown for Gun Safety AF appearing twice across
-  different campaigns
-- **United Kingdom top spenders** — Department of Justice NI at $10,000
-  leading, followed by Scottish Government, Avaaz Campaigns UK, UK Home
-  Office, and Home Office
-- The comparison reveals that US advocacy spending far outpaces UK
-  spending in absolute terms — the US top spender alone exceeds the
-  entire UK top five combined
+### Step 5 — Seasonal Influence: Ad Volume Trends
+- Used the overtime enrichment dataset as the source for this chart
+  to access the pivoted date structure where each ad contributed two
+  date points — a start and an end — creating a continuous time series
+- Applied a running sum table calculation on top of the weekly spend
+  aggregation to show cumulative targeting volume building over time
+  rather than point-in-time spend which would have appeared too noisy
+- Filtered the line breakdown to the five most active countries to
+  prevent overcrowding and added reference band annotations marking
+  the pre-election spike periods for the 2018 US Midterms and the
+  2019 European Parliament elections
 
-### The Trajectory of Targeting: Growth & Ethical Concern
-- Slope chart tracking targeting growth from 2018 to 2019 across
-  individual advertisers — lines converging and diverging to show which
-  organizations scaled their targeting intensity
-- Accompanied by a key findings text block noting that while ad spend
-  is increasing globally, concentration on specific demographics raises
-  significant ethical questions
-- Highlights that **75% of targeted advocacy spending** is directed
-  toward younger demographics with some campaigns reaching individuals
-  as young as **14 years old**
+### Step 6 — Audience Segmentation Donut Charts
+- Built six individual donut charts — one per targeting dimension —
+  using a dual-axis technique where the outer ring showed the percentage
+  of ads using that dimension and an inner white filled circle masked
+  the center to create the donut shape
+- Calculated each percentage using the targeting flag column divided
+  by the total record count, formatted to two decimal places
+- Arranged all six in a 2×3 grid inside a horizontal container with
+  consistent sizing, spacing, and color palette
+
+### Step 7 — Cross-Market Comparison
+- Built two side-by-side horizontal bar charts filtered to the United
+  States and United Kingdom respectively, each ranked by total spend
+  per organization in descending order
+- Added country dropdown parameter controls on each side so viewers
+  could swap the comparison markets without rebuilding the view
+- Placed a `Vs` label between the two charts using a text object inside
+  the layout container to make the side-by-side structure explicit
+
+### Step 8 — Trajectory of Targeting Slope Chart
+- Built a slope chart with year (2018 and 2019) as the two axis points
+  and total spend per organization as the measure, with one line per
+  advertiser connecting their spend across the two years
+- Colored lines using the minor targeting boolean flag so organizations
+  that targeted users under 18 were visually distinct from those that
+  did not — making the ethical concern immediately visible without
+  requiring the viewer to read supporting text first
+- Added the key findings annotation block to the right of the chart
+  summarizing the 75% finding and the 14-year-old minimum age discovery
+
+### Step 9 — Layout, Filters, and Publishing
+- Assembled all charts in a fixed-width vertical layout container with
+  consistent padding, a white background, and the project title and
+  introductory paragraph as a formatted text header
+- Applied a global year filter parameter at the top of the dashboard
+  so all charts responded simultaneously to the selected year
+- Enabled cross-chart filter actions on the country bar chart and the
+  cross-market comparison panels
+- Published the completed dashboard to Tableau Public
+
+## SQL Process
+
+### Schema Design
+- Designed a three-table relational schema reflecting the three source
+  files — a primary ads table, a targeting pivot table, and an election
+  enrichment table
+- The primary ads table used `ad_id` as the PRIMARY KEY since every
+  ad has a unique hashed identifier — this enforced row-level uniqueness
+  at the database level and made all future joins reliable
+- The pivot and enrichment tables used `ad_id` as a FOREIGN KEY
+  referencing the primary table, establishing the correct one-to-many
+  relationship between a single ad and its multiple pivot rows or
+  election annotations
+- Enforced data type precision at the schema level — spend stored as
+  DECIMAL rather than FLOAT to prevent rounding errors in financial
+  aggregations, dates stored as TIMESTAMP rather than VARCHAR so all
+  date arithmetic works natively, and boolean flags stored as BOOLEAN
+  rather than integers to make filtering intent explicit
+
+### Constraints and Data Quality Enforcement
+- Added CHECK constraints directly into the schema to prevent invalid
+  data from entering the database on any future load — spend constrained
+  to be greater than or equal to zero, location targeting tier
+  constrained to only accept the three valid values (0, 1, 2), and
+  targeting criteria count constrained between 0 and 10
+- These constraints act as a permanent guardrail so data quality issues
+  from upstream source systems are caught at ingestion rather than
+  discovered months later when a dashboard metric produces an unexpected
+  result
+
+### KPI and Aggregation Queries
+- Wrote aggregation queries to produce the three dashboard KPI values —
+  distinct country count, total verified spend excluding zero-spend
+  records, and total impressions — using conditional filtering to ensure
+  zero-spend ads were excluded from financial metrics while remaining
+  in the dataset for ad volume counts
+- Used window functions alongside standard aggregations to calculate
+  each country's percentage share of total spend in a single query pass
+  rather than requiring a subquery or a second table scan
+
+### Targeting Analysis Queries
+- Wrote queries to calculate the percentage of ads using each of the
+  eight targeting dimensions by summing the binary flag columns and
+  dividing by the total record count — producing the exact percentages
+  shown in the audience segmentation donut charts
+- Queried the full targeting criteria count distribution to confirm the
+  finding that 90% of ads used two or more criteria simultaneously
+
+### Minor Targeting Queries
+- Queried all records where the `targets_minors` flag was True to
+  produce a complete list of organizations that ran age brackets
+  including users under 18, ranked by total spend
+- Calculated the share of total impressions and spend directed at
+  minor-inclusive audiences versus adult-only audiences to quantify
+  the scale of the ethical concern rather than leaving it as a
+  qualitative observation
+
+### Seasonal and Election Period Queries
+- Used `DATE_TRUNC` to aggregate spend and impression volume by month
+  and by week, producing the time series data underlying the seasonal
+  trend line on the dashboard
+- Joined the primary ads table to the election enrichment table to
+  group ad volume and spend by election type — confirming that the
+  pre-election surge pattern held across all classified election
+  periods in both 2018 and 2019
+- Applied a window function cumulative sum partitioned by country and
+  ordered by week to produce the running total spend series used in
+  the Seasonal Influence trend line visualization
+
+### Year-Over-Year Growth Queries
+- Wrote a pivot-style query using conditional aggregation to place
+  each organization's 2018 and 2019 spend side by side in a single
+  result row, then computed the year-over-year change as a derived
+  column — producing the underlying data for the slope chart
+- Flagged any organization with at least one minor-targeted campaign
+  using a max aggregation on the boolean flag so the minor targeting
+  indicator carried through to the year-over-year comparison
+
+### Spend Distribution Queries
+- Used `PERCENTILE_CONT` to calculate the full spend distribution
+  including the 25th, 50th, and 75th percentiles alongside the mean
+  and max — confirming the heavily right-skewed distribution where the
+  median of $169 sits far below the mean of $1,330 due to a small
+  number of high-budget advertisers
+- Queried the top 10 highest-spend ads with their full targeting
+  profile including age bracket, minor targeting flag, criteria count,
+  and spend-per-impression ratio to give a complete picture of what
+  the highest-investment campaigns looked like
 
 ## Business Impact
 
@@ -398,4 +521,3 @@ move from raw ad records to a finished analytical dashboard:
   ad records (57%) and $2.26 million of $3.89 million in total spend
   (58%) — making it by far the largest market for Snapchat political
   advertising
-
